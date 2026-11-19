@@ -452,6 +452,55 @@ python3 s10_evaluate.py
 - 그래도 `429` 오류가 나면 Foundry 포털 → 모델 → 배포 → `gpt-4.1-mini` → 편집에서 TPM 한도를 30K 이상으로 올리거나, 코드의 `PAUSE` 값을 10으로 늘림
 - 평가 SDK는 `429`가 나면 30초 기다린 뒤 자동으로 다시 시도하므로, 경고가 몇 번 보여도 기다리면 이어서 진행됨
 
+
+결과 파일 확인
+
+- 실행이 끝나면 질문별 답변과 점수가 `eval_results.json`에 저장됨
+- 아래 명령으로 질문별 답변과 점수를 함께 확인함
+
+```bash
+cd ~/foundry-lab
+python3 -c "
+import json
+for r in json.load(open('eval_results.json', encoding='utf-8')):
+    print(f\"[{r['type']}] 근거성={r['groundedness']}, 관련성={r['relevance']}\")
+    print(f\"  Q: {r['question']}\")
+    print(f\"  A: {r['response'][:120]}\n\")
+"
+```
+
+- 점수는 1~5점이며 높을수록 좋음. 평가자의 기본 합격 기준은 3점임
+- RAG 미적용 답변 중 숫자나 조건을 지어낸 답이 있는지, 그 답의 근거성 점수가 낮게 나왔는지 확인함
+
+(선택) 평가자의 판단 이유 확인
+
+- 평가자는 점수와 함께 판단 이유도 돌려줌. 이유를 보려면 `s10_evaluate.py`에서 아래 네 줄을
+
+```python
+        g = groundedness(query=q, response=resp, context=DOCS[answer_id])["groundedness"]
+        time.sleep(PAUSE)
+        r = relevance(query=q, response=resp)["relevance"]
+        time.sleep(PAUSE)
+```
+
+- 다음과 같이 바꾼 뒤 다시 실행함
+
+```python
+        g_res = groundedness(query=q, response=resp, context=DOCS[answer_id])
+        time.sleep(PAUSE)
+        r_res = relevance(query=q, response=resp)
+        time.sleep(PAUSE)
+        g, r = g_res["groundedness"], r_res["relevance"]
+        print(f"    근거성 이유: {g_res.get('groundedness_reason', '')}")
+        print(f"    관련성 이유: {r_res.get('relevance_reason', '')}")
+```
+
+- 판단 이유를 보면 "답변에 문서에 없는 내용이 포함됨"처럼 점수가 낮은 원인을 확인할 수 있음. 평가자도 결국 채점 기준을 담은 프롬프트로 동작한다는 점을 확인하는 활동임
+
+
+
+
+
 생각해 볼 점
 
 1. 두 방식의 근거성 점수 차이를 확인함. RAG 미적용 답변이 질문에 그럴듯하게 답했다면 관련성은 높게 나올 수 있으며, 두 지표가 다르게 움직인 이유를 생각해 봄
